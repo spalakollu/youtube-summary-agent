@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 import streamlit as st
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from openai import OpenAI
 
 
@@ -34,9 +34,19 @@ def extract_video_id(url: str) -> str:
     else:
         return url.strip()
 
+
 def get_transcript(video_id: str) -> str:
-    transcript = YouTubeTranscriptApi.get_transcript(video_id)
-    return " ".join([item["text"] for item in transcript])
+    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+    # Try manually created English first
+    try:
+        transcript = transcript_list.find_manually_created_transcript(['en'])
+    except:
+        # Fallback to auto-generated English
+        transcript = transcript_list.find_generated_transcript(['en'])
+
+    transcript_data = transcript.fetch()
+    return " ".join([item["text"] for item in transcript_data])
 
 
 def summarize_with_openai(api_key: str, transcript: str) -> str:
@@ -83,42 +93,53 @@ openai_key = st.sidebar.text_input("OpenAI API Key", type="password")
 # Input
 youtube_url = st.text_input("Enter YouTube URL")
 
-# Button
+
+# -----------------------------
+# Button Action
+# -----------------------------
 if st.button("Generate Summary", disabled=not openai_key):
+
     if not youtube_url.strip():
         st.warning("Please enter a YouTube URL.")
-    else:
-        try:
-            with st.spinner("Fetching transcript and generating summary..."):
+        st.stop()
 
-                video_id = extract_video_id(youtube_url)
-                try:
-                    transcript_text = get_transcript(video_id)
-                except Exception as e:
-                    st.error("Unable to fetch transcript for this video. Sometimes YouTube captions are unavailable.")
-                    st.caption(f"Details: {e}")
-                    transcript_text = None
+    try:
+        with st.spinner("Fetching transcript and generating summary..."):
 
-                summary = summarize_with_openai(openai_key, transcript_text)
+            # Extract video ID
+            video_id = extract_video_id(youtube_url)
 
-                # Save to memory if new
-                existing_urls = {item["url"] for item in memory}
-                if youtube_url not in existing_urls:
-                    memory.append({
-                        "url": youtube_url,
-                        "summary": summary,
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    save_memory(memory)
-                else:
-                    st.info("This video already exists in memory.")
+            # Try to fetch transcript
+            try:
+                transcript_text = get_transcript(video_id)
+            except Exception as e:
+                st.error("❌ Unable to fetch transcript for this video.")
+                st.caption("This video likely has no captions available.")
+                st.caption(f"Details: {e}")
+                st.stop()
 
-                st.success("Summary generated!")
-                st.subheader("📝 Summary")
-                st.write(summary)
+            # Generate summary
+            summary = summarize_with_openai(openai_key, transcript_text)
 
-        except Exception as e:
-            st.error(f"Error: {e}")
+            # Save to memory if not duplicate
+            existing_urls = {item["url"] for item in memory}
+            if youtube_url not in existing_urls:
+                memory.append({
+                    "url": youtube_url,
+                    "summary": summary,
+                    "timestamp": datetime.now().isoformat()
+                })
+                save_memory(memory)
+            else:
+                st.info("This video already exists in memory.")
+
+            # Display result
+            st.success("Summary generated!")
+            st.subheader("📝 Summary")
+            st.write(summary)
+
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
 
 
 # -----------------------------
