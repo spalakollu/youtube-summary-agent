@@ -1,27 +1,38 @@
 # 🎥 YouTube Summary Agent
 
-An AI-powered agent that summarizes YouTube videos using transcripts and OpenAI's GPT models. Built with Streamlit and Agno.
+An AI-powered agent that summarizes YouTube videos using transcripts and OpenAI's GPT models. Built with **Streamlit** and the **Agno agent framework**.  
+Now includes **persistent memory**, so your past summaries are saved across sessions.
 
-## Features
+---
+
+## ✨ Features
+
 - Paste a YouTube URL  
-- Automatically extracts transcript  
-- Generates a clean, readable summary  
-- Simple web interface  
-- Runs locally  
+- Automatically extracts the transcript  
+- Generates a clean, readable AI summary  
+- Stores summaries locally using persistent memory (`memory.json`)  
+- Prevents duplicate entries for the same video  
+- Displays your recent summary history  
+- Simple Streamlit web interface  
+- Runs completely locally  
 
-## Demo
-(Add a screenshot here later if you want)
+---
 
-## Tech Stack
-- Python
-- Streamlit
-- OpenAI
-- Agno (agent framework)
-- youtube-transcript-api
+## 🧠 Agent Capabilities
 
-## Installation
+This project demonstrates:
+- Tool-using LLM agents (YouTube transcript as a tool)
+- Prompted reasoning via Agno
+- Persistent agent memory using JSON
+- Basic state management
+- Clean, reproducible app structure
 
-Clone the repo:
-```bash
-git clone https://github.com/spalakollu/youtube-summary-agent.git
-cd youtube-summary-agent
+---
+
+## 📸 Demo
+
+> (Add a screenshot or GIF of your app here later)
+
+You can add a screenshot like this:
+```markdown
+![App Screenshot](screenshot.png)
