@@ -4,8 +4,7 @@ from datetime import datetime
 
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
-from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from openai import OpenAI
 
 
 # -----------------------------
@@ -40,33 +39,51 @@ def get_transcript(video_id: str) -> str:
     return " ".join([item["text"] for item in transcript])
 
 
+def summarize_with_openai(api_key: str, transcript: str) -> str:
+    client = OpenAI(api_key=api_key)
+
+    prompt = f"""
+You are an expert assistant that summarizes YouTube videos.
+
+Instructions:
+- Summarize clearly and concisely
+- Use bullet points
+- Highlight key ideas and takeaways
+- Keep it easy to read
+
+Transcript:
+{transcript}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You summarize YouTube transcripts."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3,
+    )
+
+    return response.choices[0].message.content
+
+
 # -----------------------------
-# Streamlit Page Config
+# Streamlit UI
 # -----------------------------
 st.set_page_config(page_title="🎥 ➡️ 📝 YouTube Summary Agent")
 st.title("🎥 ➡️ 📝 YouTube Summary Agent")
 st.write("Paste a YouTube link and get a clean AI-generated summary.")
 
-# Load memory
 memory = load_memory()
 
-
-# -----------------------------
-# Sidebar - API Key Input
-# -----------------------------
+# Sidebar
 st.sidebar.header("🔑 API Key")
 openai_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
-
-# -----------------------------
-# Main Input
-# -----------------------------
+# Input
 youtube_url = st.text_input("Enter YouTube URL")
 
-
-# -----------------------------
-# Button Action
-# -----------------------------
+# Button
 if st.button("Generate Summary", disabled=not openai_key):
     if not youtube_url.strip():
         st.warning("Please enter a YouTube URL.")
@@ -74,32 +91,18 @@ if st.button("Generate Summary", disabled=not openai_key):
         try:
             with st.spinner("Fetching transcript and generating summary..."):
 
-                # Set API key
-                os.environ["OPENAI_API_KEY"] = openai_key
-
-                # Extract transcript
                 video_id = extract_video_id(youtube_url)
-                transcript_text = get_transcript(video_id)
+                try:
+                    transcript_text = get_transcript(video_id)
+                except Exception as e:
+                    st.error("Unable to fetch transcript for this video. Sometimes YouTube captions are unavailable.")
+                    st.caption(f"Details: {e}")
+                    transcript_text = None
 
-                # Create Agent
-                agent = Agent(
-                    name="YouTube Summarizer",
-                    model=OpenAIChat(id="gpt-4o"),
-                    instructions=[
-                        "Summarize this YouTube transcript clearly and concisely.",
-                        "Use bullet points.",
-                        "Highlight the key ideas and takeaways.",
-                        "Keep it easy to read."
-                    ],
-                )
+                summary = summarize_with_openai(openai_key, transcript_text)
 
-                # Run Agent
-                response = agent.run(transcript_text)
-                summary = response.content
-
-                # Save to memory if not duplicate
+                # Save to memory if new
                 existing_urls = {item["url"] for item in memory}
-
                 if youtube_url not in existing_urls:
                     memory.append({
                         "url": youtube_url,
@@ -108,9 +111,8 @@ if st.button("Generate Summary", disabled=not openai_key):
                     })
                     save_memory(memory)
                 else:
-                    st.info("This video is already saved. Showing existing summary.")
+                    st.info("This video already exists in memory.")
 
-                # Display result
                 st.success("Summary generated!")
                 st.subheader("📝 Summary")
                 st.write(summary)
@@ -120,13 +122,13 @@ if st.button("Generate Summary", disabled=not openai_key):
 
 
 # -----------------------------
-# Memory Display
+# Show Memory
 # -----------------------------
 st.divider()
 st.subheader("📚 Previous Summaries")
 
 if memory:
-    for item in reversed(memory[-10:]):  # Show last 10
+    for item in reversed(memory[-10:]):
         st.markdown(f"**{item['url']}**")
         st.caption(item["timestamp"])
         st.write(item["summary"])

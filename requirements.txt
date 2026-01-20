@@ -1,4 +1,3 @@
-agno
 streamlit
 openai
 youtube-transcript-api
